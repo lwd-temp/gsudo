@@ -14,11 +14,9 @@ namespace gsudo.Commands
 {
     class StatusCommand : ICommand
     {
-        private uint pid;
-
         public bool AsJson { get; set; }
         public string Key { get; set; }
-        public uint Pid { get => pid; set => pid = value; }
+        public uint Pid { get; set; }
 
         public Task<int> Execute()
         {
@@ -31,8 +29,7 @@ namespace gsudo.Commands
 
             bool isAdmin = SecurityHelper.IsAdministrator();
             result["IsElevated"] = isAdmin;
-            bool isAdminMember = SecurityHelper.IsMemberOfLocalAdmins();
-            result["IsAdminMember"] = isAdminMember;
+            result["IsAdminMember"] = SecurityHelper.IsMemberOfLocalAdmins();
 
             var integrity = SecurityHelper.GetCurrentIntegrityLevel();
             var integrityString = string.Empty;
@@ -43,17 +40,14 @@ namespace gsudo.Commands
             result["IntegrityLevelNumeric"] = integrity;
             result["IntegrityLevel"] = integrityString;
             result["CacheMode"] = Settings.CacheMode.Value.ToString();
-            bool isCacheAvailable = NamedPipeClient.IsServiceAvailable();
-            result["CacheAvailable"] = isCacheAvailable;
+            result["CacheAvailable"] = NamedPipeClient.IsServiceAvailable();
 
-            //            ---------
             var pipes = NamedPipeUtils.ListNamedPipes();
             result["CacheSessionsCount"] = pipes.Count;
             result["CacheSessions"] = pipes.ToArray();
-
             result["IsRedirected"] = Console.IsInputRedirected || Console.IsOutputRedirected || Console.IsErrorRedirected;
 
-            if (this.pid > 0)
+            if (this.Pid > 0)
             {
                 PrintConsoleProcessList();
             }
@@ -65,27 +59,10 @@ namespace gsudo.Commands
                     if (val is string)
                         Console.WriteLine(val);
                     else
-                    {
                         Console.WriteLine(GetJsonValue(val));
-                    }
 
-                    switch (Key.ToLowerInvariant())
-                    {
-                        case "cacheavailable":
-                            if (!isCacheAvailable)
-                                return Task.FromResult(1);
-                            break;
-
-                        case "iselevated":
-                            if (!isAdmin)
-                                return Task.FromResult(1);
-                            break;
-
-                        case "isadminmember":
-                            if (!isAdminMember)
-                                return Task.FromResult(1);
-                            break;
-                    }
+                    if (val is bool)
+                        return Task.FromResult((bool)val ? 1 : 0);
                 }
                 else
                 {
@@ -197,7 +174,7 @@ namespace gsudo.Commands
             bool first = true;
             foreach (var pid in processIds.Reverse())
             {
-                if (this.pid > 0 && pid != this.pid) continue;
+                if (this.Pid > 0 && pid != this.Pid) continue;
 
                 Process p = null;
                 string name = unknown;
@@ -269,11 +246,8 @@ namespace gsudo.Commands
                     if (!AsJson)
                         Console.WriteLine(val);
                     else
-                    {
                         Console.WriteLine(GetJsonValue(val));
-                    }
                 }
-
                 else if (!AsJson)
                 {
                     integrity = $"{integrityString} ({integrity})";
@@ -283,15 +257,15 @@ namespace gsudo.Commands
                 {
                     if (!first)
                         Console.WriteLine(",");
-                    if (this.pid == 0)
+                    if (this.Pid == 0)
                         Console.Write($"   \"{pid}\": ");
                     Console.Write($"{{\"Pid\":{pid}, \"Ppid\":{ppid}, \"IntegrityLevelNumeric\":{integrity}, \"IntegrityLevel\":\"{integrityString}\", \"UserName\":{GetJsonValue(username)}, \"Executable\":{GetJsonValue(name)}}}");
                 }
                 first = false;
             }
 
-            if (first && this.pid > 0)
-                throw new ApplicationException($"PID \"{this.pid}\" is not attached to this console.");
+            if (first && this.Pid > 0)
+                throw new ApplicationException($"PID \"{this.Pid}\" is not attached to this console.");
         }
     }
 }
